@@ -1,0 +1,63 @@
+{{- if .Values.ingest.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iaoep.fullname" . }}-ingest
+  labels:
+    {{- include "iaoep.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  replicas: {{ .Values.ingest.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "iaoep.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ingest
+  template:
+    metadata:
+      labels:
+        {{- include "iaoep.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ingest
+    spec:
+      containers:
+        - name: ingest
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.ingest.image.repository }}:{{ .Values.ingest.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: otlp-http
+              containerPort: {{ .Values.ingest.service.otlpHttpPort }}
+              protocol: TCP
+            - name: otlp-grpc
+              containerPort: {{ .Values.ingest.service.otlpGrpcPort }}
+              protocol: TCP
+          env:
+            - name: IAOEP_INGEST_HTTP_PORT
+              value: {{ .Values.ingest.service.otlpHttpPort | quote }}
+            - name: IAOEP_INGEST_GRPC_PORT
+              value: {{ .Values.ingest.service.otlpGrpcPort | quote }}
+            - name: IAOEP_INGEST_KAFKA_BROKERS
+              value: {{ .Values.ingest.kafkaBrokers | quote }}
+            - name: IAOEP_INGEST_KAFKA_TOPIC
+              value: {{ .Values.ingest.kafkaTopic | quote }}
+            - name: IAOEP_INGEST_API_KEYS
+              value: {{ .Values.ingest.apiKeys | quote }}
+            - name: IAOEP_INGEST_RATE_LIMIT
+              value: {{ .Values.ingest.rateLimit | quote }}
+            - name: IAOEP_INGEST_RATE_BURST
+              value: {{ .Values.ingest.rateBurst | quote }}
+            - name: IAOEP_INGEST_DEFAULT_TENANT
+              value: {{ .Values.ingest.defaultTenant | quote }}
+          resources:
+            {{- toYaml .Values.ingest.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: otlp-http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: otlp-http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+{{- end }}

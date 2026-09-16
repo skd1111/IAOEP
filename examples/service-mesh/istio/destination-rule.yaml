@@ -1,0 +1,42 @@
+# Istio DestinationRule — Phase 6 A/B Test
+#
+# 定义 customer-agent 服务的两个 subset:
+#   - v1   (baseline 版本)
+#   - v1.1 (candidate 版本)
+#
+# VirtualService (virtual-service.yaml) 会按 50/50 流量路由到这两个 subset.
+
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: customer-agent
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: iaoep
+    app.kubernetes.io/component: customer-agent
+spec:
+  host: customer-agent.default.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+  subsets:
+    - name: v1
+      labels:
+        version: v1.0
+        ab_test_group: baseline
+      trafficPolicy:
+        # baseline: 无熔断特殊配置
+    - name: v1.1
+      labels:
+        version: v1.1-rc1
+        ab_test_group: candidate
+      trafficPolicy:
+        # candidate: 启用更严格熔断 (新版本保守)
+        outlierDetection:
+          consecutive5xxErrors: 3
+          interval: 10s

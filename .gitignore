@@ -1,0 +1,104 @@
+# Compiled output
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle/
+build.gradle.kts
+settings.gradle.kts
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Go
+bin/
+
+# Docker
+docker-compose.override.yml
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE / Editor
+*.swp
+*.swo
+*~
+
+# Logs / Temp
+*.log
+logs/
+tmp/
+.temp/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Kubernetes / Helm
+charts/*/charts/
+charts/*/tmp/
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# Maven local repo target
+.m2/
+
+# Python compiled
+*.pyo
+*.pyd
+.python-version
+
+# ClickHouse data
+data/
+*.parquet
+
+# Kafka data
+kafka-logs/
+
+# Local dev artifacts
+.local/

@@ -1,0 +1,95 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: iaoep-evaluator-api
+
+  # ============================================================
+  # PostgreSQL (元数据存储)
+  # ============================================================
+  datasource:
+    url: ${IAOEP_EVALUATOR_DB_URL:jdbc:postgresql://localhost:5432/iaoep_evaluator}
+    username: ${IAOEP_EVALUATOR_DB_USER:iaoep}
+    password: ${IAOEP_EVALUATOR_DB_PASSWORD:iaoep_dev_pwd}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # 异步执行器 (PR 15)
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 8
+        queue-capacity: 100
+      thread-name-prefix: iaoep-eval-
+
+  # ============================================================
+  # IAOEP Evaluator 业务配置
+  # ============================================================
+  iaoep:
+    evaluator:
+      # PR 13 Rule Scorer
+      scorers: {}
+      # PR 14 LLM Judge
+      judge:
+        base-url: ${IAOEP_JUDGE_BASE_URL:http://iaoep-judge:9000}
+        timeout-seconds: 30
+        voting-count: 1
+        llm:
+          model: ${IAOEP_JUDGE_LLM_MODEL:qwen3-max}
+          base-url: ${IAOEP_JUDGE_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+          api-key: ${IAOEP_JUDGE_LLM_API_KEY:}
+      # PR 15 评测通知
+      notification:
+        evaluation:
+          webhook-url: ${IAOEP_EVALUATOR_NOTIFICATION_EVALUATION_WEBHOOK_URL:}
+          type: ${IAOEP_EVALUATOR_NOTIFICATION_EVALUATION_TYPE:dingtalk}
+      # PR 18 Analyst
+      analyst:
+        enabled: ${IAOEP_ANALYST_ENABLED:true}
+        lookback-jobs: ${IAOEP_ANALYST_LOOKBACK:20}
+        fixed-delay-ms: ${IAOEP_ANALYST_FIXED_DELAY_MS:86400000}   # 1 天
+      # PR 20 Approval
+      approval:
+        sla-days: ${IAOEP_APPROVAL_SLA_DAYS:7}
+        sla-cron: ${IAOEP_APPROVAL_SLA_CRON:0 0 3 * * ?}
+        webhook-url: ${IAOEP_APPROVAL_WEBHOOK_URL:}
+        type: ${IAOEP_APPROVAL_TYPE:dingtalk}
+
+# ============================================================
+# Actuator / Metrics
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    io.iaoep: INFO
+    org.hibernate.SQL: WARN

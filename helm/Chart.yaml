@@ -1,0 +1,29 @@
+apiVersion: v2
+name: iaoep
+description: IAOEP — Intelligent Agent Observation and Evaluation Platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/iaoep/iaoep
+icon: https://raw.githubusercontent.com/iaoep/iaoep/main/docs/icon.png
+keywords:
+  - observability
+  - opentelemetry
+  - ai-agents
+  - llm
+maintainers:
+  - name: IAOEP Contributors
+    email: maintainers@iaoep.io
+sources:
+  - https://github.com/iaoep/iaoep
+license: MIT
+
+dependencies:
+  - name: kafka
+    version: "30.0.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+  - name: clickhouse
+    version: "1.0.4"
+    repository: https://charts.bitnami.com/bitnami
+    condition: clickhouse.enabled

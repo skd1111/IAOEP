@@ -1,0 +1,93 @@
+# Istio VirtualService — Phase 6 A/B Test
+#
+# 三层路由策略:
+#   1. 如果请求已经带 X-IAOEP-AB-Test-Group header (SDK 注入), 100% 路由到对应 subset
+#   2. 如果请求带 cookie ab_group=baseline / candidate, 同上
+#   3. 否则, 50/50 流量随机分配
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: customer-agent
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: iaoep
+spec:
+  hosts:
+    - customer-agent
+    - customer-agent.default.svc.cluster.local
+
+  http:
+    # 路由 1: 已带 X-IAOEP-AB-Test-Group header → 路由到对应版本
+    - match:
+        - headers:
+            x-iaoep-ab-test-group:
+              exact: baseline
+      route:
+        - destination:
+            host: customer-agent
+            subset: v1
+          weight: 100
+
+    - match:
+        - headers:
+            x-iaoep-ab-test-group:
+              exact: candidate
+      route:
+        - destination:
+            host: customer-agent
+            subset: v1.1
+          weight: 100
+
+    # 路由 2: 已带 cookie (用于 sticky session)
+    - match:
+        - headers:
+            cookie:
+              regex: ".*ab_group=baseline.*"
+      route:
+        - destination:
+            host: customer-agent
+            subset: v1
+          weight: 100
+
+    - match:
+        - headers:
+            cookie:
+              regex: ".*ab_group=candidate.*"
+      route:
+        - destination:
+            host: customer-agent
+            subset: v1.1
+          weight: 100
+
+    # 路由 3: 默认 50/50 流量分配
+    - route:
+        - destination:
+            host: customer-agent
+            subset: v1
+          weight: 50
+      - destination:
+          host: customer-agent
+          subset: v1.1
+        weight: 50
+
+  # 可选: 跨 namespace 流量镜像 (用于对比测试)
+  # mirror:
+  #   host: customer-agent-mirror
+  #   subset: v1
+  #   percentage: 10
+
+  # 故障注入 (测试用, 生产关闭)
+  # fault:
+  #   delay:
+  #     percentage: 5
+  #     fixedDelay: 3s
+
+  # 重试策略 (跨 subset 时不重试)
+  retries:
+    attempts: 3
+    perTryTimeout: 2s
+    retryOn: 5xx,reset,connect-failure
+
+  # 超时
+  timeout: 30s

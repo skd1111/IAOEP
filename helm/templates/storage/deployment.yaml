@@ -1,0 +1,61 @@
+{{- if .Values.storage.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iaoep.fullname" . }}-storage
+  labels:
+    {{- include "iaoep.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  replicas: {{ .Values.storage.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "iaoep.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: storage
+  template:
+    metadata:
+      labels:
+        {{- include "iaoep.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: storage
+    spec:
+      containers:
+        - name: storage
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.storage.image.repository }}:{{ .Values.storage.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.storage.service.port }}
+          env:
+            - name: IAOEP_STORAGE_KAFKA_BROKERS
+              value: {{ .Values.storage.env.kafkaBrokers | quote }}
+            - name: IAOEP_STORAGE_KAFKA_TOPIC
+              value: {{ .Values.storage.env.kafkaTopic | quote }}
+            - name: IAOEP_STORAGE_CLICKHOUSE_URL
+              value: {{ .Values.storage.env.clickhouseUrl | quote }}
+            - name: IAOEP_STORAGE_CLICKHOUSE_USER
+              value: {{ .Values.storage.env.clickhouseUser | quote }}
+            - name: IAOEP_STORAGE_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "iaoep.fullname" . }}-clickhouse
+                  key: password
+                  optional: true
+            - name: IAOEP_STORAGE_BATCH_SIZE
+              value: {{ .Values.storage.batchSize | quote }}
+            - name: IAOEP_STORAGE_BATCH_FLUSH_INTERVAL_MS
+              value: {{ .Values.storage.flushIntervalMs | quote }}
+          resources:
+            {{- toYaml .Values.storage.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+{{- end }}

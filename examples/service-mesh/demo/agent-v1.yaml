@@ -1,0 +1,84 @@
+# Agent v1.0 (baseline) 部署 — Phase 6 A/B Test demo
+#
+# Customer Service Agent 的 baseline 版本, 用 qwen3-turbo.
+# Service Mesh (Istio) 会按 VirtualService 配置分流到这里.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-agent-v1
+  namespace: default
+  labels:
+    app: customer-agent
+    version: v1.0
+    ab_test_group: baseline
+    app.kubernetes.io/part-of: iaoep
+    app.kubernetes.io/component: customer-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: customer-agent
+      version: v1.0
+  template:
+    metadata:
+      labels:
+        app: customer-agent
+        version: v1.0
+        ab_test_group: baseline
+        app.kubernetes.io/part-of: iaoep
+    spec:
+      # 注入 Istio sidecar (自动)
+      containers:
+        - name: customer-agent
+          image: iaoep/customer-service-demo:0.4.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-key
+                  key: api-key
+            - name: OPENAI_BASE_URL
+              value: https://dashscope.aliyuncs.com/compatible-mode/v1
+            - name: AGENT_MODEL
+              value: qwen3-turbo            # baseline: 用轻量模型
+            - name: IAOEP_EXPORTER_OTLP_ENDPOINT
+              value: http://iaoep-ingest:4318
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+
+---
+# Service for v1.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-agent-v1
+  namespace: default
+  labels:
+    app: customer-agent
+    version: v1.0
+spec:
+  selector:
+    app: customer-agent
+    version: v1.0
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

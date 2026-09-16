@@ -1,0 +1,75 @@
+# Agent v1.1-rc1 (candidate) 部署 — Phase 6 A/B Test demo
+#
+# Customer Service Agent 的 candidate 版本, 用 qwen3-max (更强但更慢).
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-agent-v1.1
+  namespace: default
+  labels:
+    app: customer-agent
+    version: v1.1-rc1
+    ab_test_group: candidate
+    app.kubernetes.io/part-of: iaoep
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: customer-agent
+      version: v1.1-rc1
+  template:
+    metadata:
+      labels:
+        app: customer-agent
+        version: v1.1-rc1
+        ab_test_group: candidate
+        app.kubernetes.io/part-of: iaoep
+    spec:
+      containers:
+        - name: customer-agent
+          image: iaoep/customer-service-demo:0.4.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-key
+                  key: api-key
+            - name: OPENAI_BASE_URL
+              value: https://dashscope.aliyuncs.com/compatible-mode/v1
+            - name: AGENT_MODEL
+              value: qwen3-max               # candidate: 用更强模型
+            - name: IAOEP_EXPORTER_OTLP_ENDPOINT
+              value: http://iaoep-ingest:4318
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-agent-v1.1
+  namespace: default
+  labels:
+    app: customer-agent
+    version: v1.1-rc1
+spec:
+  selector:
+    app: customer-agent
+    version: v1.1-rc1
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

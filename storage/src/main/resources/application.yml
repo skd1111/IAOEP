@@ -1,0 +1,70 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: iaoep-storage
+
+  # ============================================================
+  # Kafka Consumer 配置
+  # ============================================================
+  kafka:
+    bootstrap-servers: ${IAOEP_STORAGE_KAFKA_BROKERS:localhost:29092}
+    consumer:
+      group-id: iaoep-storage
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.records: 1000
+        # 关键: 批量消费,提高吞吐
+        spring.json.trusted.packages: io.iaoep.storage.model
+    listener:
+      type: batch
+      ack-mode: manual_immediate
+
+# ============================================================
+# IAOEP Storage 业务配置
+# ============================================================
+iaoep:
+  storage:
+    # Kafka topic
+    kafka-topic: ${IAOEP_STORAGE_KAFKA_TOPIC:iaoep.traces}
+    # ClickHouse 数据源
+    clickhouse:
+      url: ${IAOEP_STORAGE_CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/iaoep}
+      user: ${IAOEP_STORAGE_CLICKHOUSE_USER:iaoep}
+      password: ${IAOEP_STORAGE_CLICKHOUSE_PASSWORD:iaoep_dev_pwd}
+      driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+    # 批量写入
+    batch:
+      size: 1000           # 累积 1000 条 flush
+      flush-interval-ms: 5000  # 或 5 秒 flush (取先到者)
+    # 重试
+    retry:
+      max-attempts: 3
+      backoff-ms: 1000
+
+# ============================================================
+# Actuator / Metrics
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    io.iaoep: INFO
+    org.apache.kafka: WARN
+    com.clickhouse: WARN

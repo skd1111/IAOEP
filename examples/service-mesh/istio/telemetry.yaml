@@ -1,0 +1,50 @@
+# Istio Telemetry — Phase 6 A/B Test
+#
+# 把 Istio 自身产生的 trace / metric 送到 OTLP backend (IAOEP Ingest).
+
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: iaoep-telemetry
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/part-of: iaoep
+spec:
+  # 默认采样: 全量 (Phase 6 简化)
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: iaoep
+
+  tracing:
+    - providers:
+        - name: otel-collector
+      # 随机采样 100% (开发环境); 生产可降为 10%
+      randomSamplingPercentage: 100
+      # 在 span 上加自定义 tags
+      customTags:
+        ab_test_enabled:
+          defaultValue: "true"
+          header:
+            name: x-iaoep-ab-test-group
+            optional: true
+
+  metrics:
+    - providers:
+        - name: otel-collector
+      # 自定义指标: 按 ab_test_group 分组的请求计数
+      overrides:
+        - tagOverrides:
+            request_operation:
+              operation: "ABSOLUTE"
+            ab_test_group:
+              operation: "ABSOLUTE"
+              value: "baseline"
+        match:
+          # (Phase 6 简化: 仅按 group 切分, 不做请求级别匹配)
+
+  accessLogging:
+    - providers:
+        - name: otel-collector
+      # 自定义 access log 字段
+      filter:
+        expression: "response.code >= 200 && response.code < 400"

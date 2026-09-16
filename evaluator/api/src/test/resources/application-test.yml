@@ -1,0 +1,14 @@
+# Test profile: H2 in-memory, Flyway disabled (JPA ddl-auto=create-drop)
+spring:
+  datasource:
+    url: jdbc:h2:mem:test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+# 简化: H2 不支持 PostgreSQL JSONB 类型, 测试只验证核心逻辑

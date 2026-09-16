@@ -1,0 +1,21 @@
+{{- if .Values.ingest.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iaoep.fullname" . }}-ingest
+  labels:
+    {{- include "iaoep.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  type: {{ .Values.ingest.service.type }}
+  ports:
+    - name: otlp-http
+      port: {{ .Values.ingest.service.otlpHttpPort }}
+      targetPort: otlp-http
+    - name: otlp-grpc
+      port: {{ .Values.ingest.service.otlpGrpcPort }}
+      targetPort: otlp-grpc
+  selector:
+    {{- include "iaoep.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+{{- end }}

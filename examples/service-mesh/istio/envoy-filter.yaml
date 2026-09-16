@@ -1,0 +1,68 @@
+# Istio EnvoyFilter — Phase 6 A/B Test
+#
+# 在 Server Sidecar 注入 X-IAOEP-AB-Test-Group header,
+# 让 Agent 服务读 header 决定版本 (即使 SDK 没接也工作).
+#
+# 实际值由 VirtualService 路由时写入 metadata,
+# 这里通过 Lua 脚本读取并写入 request header.
+
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: iaoep-ab-test-header-injector
+  namespace: default
+  labels:
+    app.kubernetes.io/part-of: iaoep
+spec:
+  configPatches:
+    # Patch 1: 在 Server Sidecar, 读取 route metadata 注入 request header
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            name: envoy.filters.network.http_connection_manager
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inline_code: |
+              function envoy_on_request(request_handle)
+                -- 从 Envoy route metadata 读取 ab_test_group (VirtualService 设置)
+                local metadata = request_handle:metadata():get("envoy.router") or {}
+                local ab_group = metadata["iaoep.ab_test_group"]
+
+                if ab_group and ab_group ~= "" then
+                  request_handle:headers():add("x-iaoep-ab-test-group", ab_group)
+                end
+
+                -- 也加 ab_test_name (从 metadata)
+                local ab_name = metadata["iaoep.ab_test_name"]
+                if ab_name and ab_name ~= "" then
+                  request_handle:headers():add("x-iaoep-ab-test-name", ab_name)
+                end
+              end
+
+    # Patch 2: 标记 trace (让 OTel Collector 知道这是 A/B 测试 span)
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_OUTBOUND
+        listener:
+          filterChain:
+            name: envoy.filters.network.http_connection_manager
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.lua
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            inline_code: |
+              function envoy_on_request(request_handle)
+                local metadata = request_handle:metadata():get("envoy.router") or {}
+                local ab_group = metadata["envoyrouter_filter_metadata"] or {}
+                if ab_group ~= nil then
+                  request_handle:headers():add("x-iaoep-ab-traced", "true")
+                end
+              end

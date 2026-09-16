@@ -1,0 +1,134 @@
+version: '3.8'
+
+# 一键启动: Spring AI Demo + IAOEP Ingest Gateway
+# 用法: docker compose up --build
+#
+# 启动后:
+#   1. 等待 30 秒 (ClickHouse + Kafka 启动)
+#   2. Demo Agent 监听 http://localhost:8080
+#   3. 发送测试请求:
+#      curl -X POST http://localhost:8080/chat \
+#        -H "Content-Type: application/json" \
+#        -d '{"query": "你好", "userId": "alice"}'
+#   4. Trace 自动上报到 IAOEP Ingest → Kafka → Storage → ClickHouse
+
+services:
+
+  # ============================================================
+  # Spring AI Demo Agent (端口 8080)
+  # ============================================================
+  demo-agent:
+    build: .
+    container_name: iaoep-demo-agent
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring AI (千问 OpenAI 兼容)
+      AI_API_KEY: ${AI_API_KEY:-demo-key}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+
+      # Phase 4: IAOEP SDK 上报地址
+      IAOEP_EXPORTER_OTLP_ENDPOINT: http://iaoep-ingest:4318
+      IAOEP_SERVICE_NAME: customer-service-demo
+      IAOEP_TENANT_ID: demo-tenant
+
+      # IAOEP A/B Test: evaluator 地址
+      IAOEP_EVALUATOR_BASE_URL: http://iaoep-evaluator:8082
+
+      # IAOEP SDK 上报地址
+      IAOEP_EXPORTER_OTLP_ENDPOINT: http://iaoep-ingest:4318
+      IAOEP_SERVICE_NAME: customer-service-demo
+      IAOEP_TENANT_ID: demo-tenant
+    depends_on:
+      - iaoep-ingest
+    networks:
+      - iaoep-net
+
+  # ============================================================
+  # IAOEP Ingest Gateway (端口 4318 / 4317)
+  # ============================================================
+  iaoep-ingest:
+    build: ../../ingest
+    container_name: iaoep-ingest
+    ports:
+      - "4317:4317"  # gRPC
+      - "4318:4318"  # HTTP
+    environment:
+      IAOEP_INGEST_HTTP_PORT: 4318
+      IAOEP_INGEST_GRPC_PORT: 4317
+      IAOEP_INGEST_KAFKA_BROKERS: iaoep-kafka:9092
+      IAOEP_INGEST_KAFKA_TOPIC: iaoep.traces
+      IAOEP_INGEST_TENANT_ID: demo-tenant
+    depends_on:
+      - iaoep-kafka
+    networks:
+      - iaoep-net
+
+  # ============================================================
+  # IAOEP Storage Worker (端口 8081)
+  # ============================================================
+  iaoep-storage:
+    build: ../../storage
+    container_name: iaoep-storage
+    ports:
+      - "8081:8081"
+    environment:
+      IAOEP_STORAGE_KAFKA_BROKERS: iaoep-kafka:9092
+      IAOEP_STORAGE_CLICKHOUSE_URL: jdbc:clickhouse://iaoep-clickhouse:8123/iaoep
+      IAOEP_STORAGE_CLICKHOUSE_USER: iaoep
+      IAOEP_STORAGE_CLICKHOUSE_PASSWORD: iaoep_dev_pwd
+    depends_on:
+      - iaoep-clickhouse
+      - iaoep-kafka
+    networks:
+      - iaoep-net
+
+  # ============================================================
+  # 数据层 (ClickHouse + Kafka + Zookeeper)
+  # ============================================================
+  iaoep-clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: iaoep-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: iaoep
+      CLICKHOUSE_USER: iaoep
+      CLICKHOUSE_PASSWORD: iaoep_dev_pwd
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - ../../docker-compose/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - iaoep-net
+
+  iaoep-zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: iaoep-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - iaoep-net
+
+  iaoep-kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: iaoep-kafka
+    depends_on:
+      - iaoep-zookeeper
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: iaoep-zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://iaoep-kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - iaoep-net
+
+networks:
+  iaoep-net:
+    driver: bridge

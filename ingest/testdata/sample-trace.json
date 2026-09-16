@@ -1,0 +1,72 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": { "stringValue": "demo-agent" }
+          },
+          {
+            "key": "iaoep.tenant_id",
+            "value": { "stringValue": "demo-tenant" }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "iaoep-sdk", "version": "0.1.0" },
+          "spans": [
+            {
+              "traceId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1",
+              "spanId": "BBBBBBBBBBBBBBB1",
+              "name": "agent.run",
+              "kind": 1,
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano":   "1700000005000000000",
+              "attributes": [
+                { "key": "agent.name",          "value": { "stringValue": "demo-agent" } },
+                { "key": "session.id",          "value": { "stringValue": "sess-001" } },
+                { "key": "user.id",             "value": { "stringValue": "user-42" } },
+                { "key": "agent.skill.name",    "value": { "stringValue": "general" } },
+                { "key": "agent.turns.total",   "value": { "intValue": "2" } }
+              ],
+              "status": { "code": 1, "message": "" }
+            },
+            {
+              "traceId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1",
+              "spanId": "BBBBBBBBBBBBBBB2",
+              "parentSpanId": "BBBBBBBBBBBBBBB1",
+              "name": "llm.call",
+              "kind": 1,
+              "startTimeUnixNano": "1700000001000000000",
+              "endTimeUnixNano":   "1700000003000000000",
+              "attributes": [
+                { "key": "gen_ai.system",                "value": { "stringValue": "dashscope" } },
+                { "key": "gen_ai.request.model",        "value": { "stringValue": "qwen3-turbo" } },
+                { "key": "gen_ai.usage.input_tokens",   "value": { "intValue": "120" } },
+                { "key": "gen_ai.usage.output_tokens",  "value": { "intValue": "80" } },
+                { "key": "gen_ai.cost.cny",             "value": { "doubleValue": 0.002 } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1",
+              "spanId": "BBBBBBBBBBBBBBB3",
+              "parentSpanId": "BBBBBBBBBBBBBBB1",
+              "name": "tool.execute",
+              "kind": 1,
+              "startTimeUnixNano": "1700000003000000000",
+              "endTimeUnixNano":   "1700000004500000000",
+              "attributes": [
+                { "key": "tool.name",  "value": { "stringValue": "get_current_time" } },
+                { "key": "tool.call.id", "value": { "stringValue": "call-001" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

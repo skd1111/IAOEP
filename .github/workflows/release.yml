@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  JAVA_VERSION: '17'
+  GO_VERSION: '1.22'
+  NODE_VERSION: '20'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog excerpt
+        run: |
+          # 提取最新版本段 (从 CHANGELOG.md)
+          awk '/^## \[/{ if (found) exit; if (/^## \[v/ || /^## \[1/) found=1 } found' CHANGELOG.md > .release_notes.md
+          cat .release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          body_path: .release_notes.md
+          files: |
+            LICENSE
+            CHANGELOG.md
+            RELEASE_NOTES.md
+            docs/*.md

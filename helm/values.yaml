@@ -1,0 +1,166 @@
+# ============================================================
+# IAOEP Helm Chart 默认配置
+# 安装:  helm install iaoep ./helm --namespace monitoring --create-namespace
+# 卸载:  helm uninstall iaoep -n monitoring
+# ============================================================
+
+# 全局配置
+global:
+  imageRegistry: docker.io
+  imagePullPolicy: IfNotPresent
+  storageClass: ""
+
+# ============================================================
+# Ingest Gateway (OTLP/HTTP + gRPC 接收)
+# ============================================================
+ingest:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: iaoep/ingest
+    tag: "0.1.0"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    otlpHttpPort: 4318
+    otlpGrpcPort: 4317
+  # 多租户鉴权: tenant → API Key 映射
+  # 多 tenant 用逗号分隔, 每个格式 "tenant:key"
+  # 例: "tenant1:secret-key-1,tenant2:secret-key-2"
+  apiKeys: ""
+  # 速率限制 (每 tenant 持续速率, spans/s)
+  rateLimit: 100
+  rateBurst: 1000
+  # Kafka broker 地址 (Bitnami Kafka 默认 DNS)
+  kafkaBrokers: "iaoep-kafka:9092"
+  kafkaTopic: "iaoep.traces"
+  # 默认 tenant (无 API Key 时使用)
+  defaultTenant: "default"
+
+# ============================================================
+# Storage Worker (Kafka Consumer → ClickHouse)
+# ============================================================
+storage:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: iaoep/storage
+    tag: "0.1.0"
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: ClusterIP
+    port: 8081
+  env:
+    kafkaBrokers: "iaoep-kafka:9092"
+    kafkaTopic: "iaoep.traces"
+    clickhouseUrl: "jdbc:clickhouse://iaoep-clickhouse:8123/iaoep"
+    clickhouseUser: iaoep
+    # 默认 dev 密码, 生产请用 K8s Secret
+    clickhousePassword: "iaoep_dev_pwd"
+  batchSize: 1000
+  flushIntervalMs: 5000
+
+# ============================================================
+# Web Dashboard (React 19)
+# ============================================================
+web:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: iaoep/web
+    tag: "0.1.0"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
+  # Ingress (可选)
+  ingress:
+    enabled: false
+    className: nginx
+    annotations: {}
+    hosts:
+      - host: iaoep.local
+        paths:
+          - path: /
+            pathType: Prefix
+
+# ============================================================
+# 数据层依赖 (使用 Bitnami Charts)
+# ============================================================
+kafka:
+  enabled: true
+  replicaCount: 1   # Phase 1 单节点, 生产用 3
+  zookeeper:
+    replicaCount: 1
+  persistence:
+    size: 8Gi
+  listeners:
+    client:
+      protocol: PLAINTEXT
+  config:
+    auto.create.topics.enable: "true"
+    num.partitions: "12"
+    offsets.topic.replication.factor: "1"
+
+clickhouse:
+  enabled: true
+  replicaCount: 1
+  shards: 1
+  persistence:
+    size: 20Gi
+  auth:
+    existingSecret: ""   # 可选: 引用已存在的 Secret
+    username: iaoep
+    password: "iaoep_dev_pwd"
+  # 自定义: 在初次启动时执行 init.sql
+  initdbScripts:
+    init.sql: |-
+      CREATE DATABASE IF NOT EXISTS iaoep;
+      CREATE TABLE IF NOT EXISTS iaoep.traces (
+          tenant_id LowCardinality(String),
+          trace_id String,
+          span_id String,
+          parent_span_id String DEFAULT '',
+          span_name LowCardinality(String),
+          span_kind LowCardinality(String),
+          start_time DateTime64(9),
+          end_time DateTime64(9),
+          duration_ms UInt32,
+          agent_name LowCardinality(String) DEFAULT '',
+          session_id String DEFAULT '',
+          user_id String DEFAULT '',
+          skill_name LowCardinality(String) DEFAULT '',
+          llm_system LowCardinality(String) DEFAULT '',
+          llm_model LowCardinality(String) DEFAULT '',
+          llm_input_tokens UInt32 DEFAULT 0,
+          llm_output_tokens UInt32 DEFAULT 0,
+          tool_name LowCardinality(String) DEFAULT '',
+          tool_call_id String DEFAULT '',
+          tool_error_type LowCardinality(String) DEFAULT '',
+          cost_cny Float64 DEFAULT 0,
+          status LowCardinality(String),
+          error_message String DEFAULT '',
+          tags Map(String, String) DEFAULT map(),
+          attributes Map(String, String) DEFAULT map()
+      ) ENGINE = MergeTree
+      PARTITION BY toYYYYMM(start_time)
+      ORDER BY (tenant_id, start_time, trace_id)
+      TTL start_time + INTERVAL 30 DAY;

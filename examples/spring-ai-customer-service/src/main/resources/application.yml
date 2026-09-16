@@ -1,0 +1,31 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: customer-service-demo
+
+  # Spring AI (OpenAI 兼容端点 — 接千问)
+  ai:
+    openai:
+      api-key: ${AI_API_KEY:demo-key}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      chat:
+        options:
+          model: qwen3-turbo
+
+# ============================================================
+# IAOEP SDK 配置
+# ============================================================
+iaoep:
+  sdk:
+    enabled: true
+    otlp-endpoint: ${IAOEP_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+    service-name: ${IAOEP_SERVICE_NAME:customer-service-demo}
+    tenant-id: ${IAOEP_TENANT_ID:demo-tenant}
+    sampling-ratio: 1.0
+
+logging:
+  level:
+    io.iaoep.sdk: INFO
+    org.springframework.ai: INFO

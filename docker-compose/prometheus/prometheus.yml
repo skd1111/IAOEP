@@ -1,0 +1,28 @@
+# IAOEP Prometheus 配置 (Phase 1 占位)
+# 后续会由 storage 服务直接通过 OTLP exporter 上报
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'iaoep-storage'
+    static_configs:
+      - targets: ['storage:8080']
+    metrics_path: /actuator/prometheus
+
+  - job_name: 'iaoep-ingest'
+    static_configs:
+      - targets: ['ingest:8888']
+
+  - job_name: 'iaoep-api'
+    static_configs:
+      - targets: ['api:8080']
+
+  - job_name: 'iaoep-evolution'
+    static_configs:
+      - targets: ['evolution:8080']
+
+  - job_name: 'iaoep-evaluator'
+    static_configs:
+      - targets: ['evaluator:8080']
