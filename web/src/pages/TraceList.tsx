@@ -3,31 +3,39 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Search, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { mockApi } from '@/lib/api';
+import { api, mockApi } from '@/lib/api';
 import { formatRelativeTime, formatDuration, formatNumber, formatCost } from '@/lib/utils';
 import type { TraceSummary } from '@/lib/types';
 
 /**
  * Trace 列表页 — 查看所有 trace,支持过滤.
+ * 优先用真实 API, 失败时 fallback 到 mock 数据.
  */
 export function TraceList() {
   const [userId, setUserId] = useState('');
   const [agentName, setAgentName] = useState('');
 
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ['traces', userId, agentName],
-    queryFn: () => mockApi.traces(),
+    queryFn: () => api.listTraces({
+      user_id: userId || undefined,
+      agent_name: agentName || undefined,
+    }),
     refetchInterval: 10_000,
+    retry: 1,
   });
 
-  const traces = data?.traces ?? [];
+  // API 不可用时 fallback 到 mock 数据
+  const mockData = isError ? mockApi.traces() : undefined;
+  const traces = (data?.traces ?? mockData?.traces) ?? [];
+  const total = data?.total ?? mockData?.total ?? 0;
 
   return (
     <div className="p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">链路</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          共 {data?.total ?? 0} 条 trace
+          共 {total} 条 trace
         </p>
       </div>
 

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { Plus, Database } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { mockApi, type MockDataset } from '@/lib/api';
@@ -76,9 +75,9 @@ export function DatasetList() {
                     {d.caseCount} cases · {formatRelativeTime(d.updatedAt)}
                   </div>
                 </div>
-                <Link to={`/datasets/${d.id}`} className="text-xs text-primary hover:underline">
-                  详情
-                </Link>
+                <span className="text-xs text-muted-foreground">
+                  {formatRelativeTime(d.updatedAt)}
+                </span>
               </div>
             ))}
           </div>

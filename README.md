@@ -2,7 +2,9 @@
 
 > **Intelligent Agent Observation and Evaluation Platform**
 >
-> 框架无关的 Agent 可观测性 + AI 评测 + 自进化平台
+> 不只是看到问题，而是自动解决问题。
+
+竞品是「行车记录仪」，IAOEP 是「自动驾驶辅助系统」—— 唯一实现 **观测 → 评测 → 自进化** 完整闭环的开源 Agent 平台。
 
 IAOEP 对外只暴露 **OpenTelemetry (OTLP)** 一种协议。任何语言、任何 Agent 框架,只要能发出 OTLP,就能 5 分钟接入 —— 不需要改业务代码,不需要绑死任何 SDK。
 
@@ -14,6 +16,22 @@ IAOEP 对外只暴露 **OpenTelemetry (OTLP)** 一种协议。任何语言、任
 - **成本核算** —— 按 `tenant × provider × model` 维度统计 token 消耗与 CNY 成本
 - **质量评测** —— Golden Dataset + 规则评分器 + LLM-as-Judge + 回归检测
 - **多租户** —— 每个接入方按 `tenant_id` 隔离,统一查询与权限边界
+- **自进化闭环** —— Analyst Agent 自动发现问题 → 三级审批流 → 自动应用/回滚 → 审计可追溯
+- **联邦学习** —— 跨租户聚合分析 + ε-差分隐私噪声,满足 GDPR 合规,竞品完全空白
+
+## 为什么选择 IAOEP
+
+| 能力 | Langfuse | LangSmith | Arize Phoenix | Braintrust | **IAOEP** |
+|---|---|---|---|---|---|
+| 观测 + 评测 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 自进化闭环 | ❌ | ❌ | ❌ | ❌ | **✅** |
+| 联邦学习 + 差分隐私 | ❌ | ❌ | ❌ | ❌ | **✅** |
+| 三级审批流 + SOP | ❌ | ❌ | ❌ | ❌ | **✅** |
+| Java/Go 原生 SDK | ❌ | ❌ | ❌ | ❌ | **✅** |
+| 纯 OTLP 零 SDK 锁定 | 部分 | ❌ | ✅ | ❌ | **✅** |
+| 完全开源 MIT | ✅ | ❌ | ❌ | 部分 | **✅** |
+
+→ 详细对比见 [Why IAOEP?](#) (Web Console 侧边栏 “Why IAOEP?” 页面)
 
 ## 核心设计:为什么是 OTLP
 
@@ -632,10 +650,12 @@ curl -X POST http://iaoep-ingest:4318/v1/traces \
 **Phase 1 准备中** (Q4 2026)。
 
 - ✅ 设计文档完成
-- ✅ 仓库脚手架(本目录)
-- ⏳ 数据层骨架 (ClickHouse + Kafka)
-- ⏳ Ingest Gateway (Go)
-- ⏳ IAOEP SDK (Java / Python / TypeScript / Go)
+- ✅ 仓库脚手架
+- ✅ 数据层骨架 (ClickHouse + Kafka)
+- ✅ Ingest Gateway (Go) — OTLP/HTTP + gRPC 双协议
+- ✅ IAOEP SDK (Java / Python / TypeScript / Go) — 四语言装饰器
+- ✅ Web Console — Trace 可视化 + Waterfall + 搜索 + LLM 内容
+- ✅ 自进化洞察 Dashboard + 竞品对比页 + 联邦学习页
 - ⏳ 评测引擎 (Phase 2)
 - ⏳ 自进化引擎 (Phase 3)
 

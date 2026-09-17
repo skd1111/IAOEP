@@ -14,12 +14,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"google.golang.org/protobuf/proto"
 
-	"io.iaoep/ingest/internal/auth"
-	"io.iaoep/ingest/internal/ratelimit"
+	"github.com/iaoep/ingest/internal/auth"
+	"github.com/iaoep/ingest/internal/ratelimit"
 )
 
 // Sender 是 OTLP Receiver 把解析后的 Spans 发给 Kafka 的抽象.
@@ -32,11 +34,11 @@ type Receiver struct {
 	registry       *auth.TenantRegistry
 	limiter        *ratelimit.Limiter
 	defaultTenant  string
-	spansReceived  uint64
-	spansSent      uint64
-	spansFailed    uint64
-	authRejected   uint64
-	rateRejected   uint64
+	spansReceived  atomic.Uint64
+	spansSent      atomic.Uint64
+	spansFailed    atomic.Uint64
+	authRejected   atomic.Uint64
+	rateRejected   atomic.Uint64
 }
 
 func NewReceiver(sender Sender, registry *auth.TenantRegistry, limiter *ratelimit.Limiter, defaultTenant string) *Receiver {
@@ -58,7 +60,7 @@ func (r *Receiver) HandleHTTPTraces(w http.ResponseWriter, req *http.Request) {
 	// 1. 鉴权
 	tenantID, err := r.registry.AuthenticateHTTP(req)
 	if err != nil {
-		r.authRejected++
+		r.authRejected.Add(1)
 		log.Printf("[otlp] auth failed: %v", err)
 		http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
 		return
@@ -66,7 +68,7 @@ func (r *Receiver) HandleHTTPTraces(w http.ResponseWriter, req *http.Request) {
 
 	// 2. 限流
 	if !r.limiter.Allow(tenantID) {
-		r.rateRejected++
+		r.rateRejected.Add(1)
 		log.Printf("[otlp] rate limited: tenant=%s", tenantID)
 		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 		return
@@ -80,17 +82,27 @@ func (r *Receiver) HandleHTTPTraces(w http.ResponseWriter, req *http.Request) {
 	}
 	defer req.Body.Close()
 
-	// 3. 解析 OTLP JSON
+	// 3. 解析 OTLP (根据 Content-Type 选择 JSON 或 Protobuf)
 	var traceReq coltracepb.ExportTraceServiceRequest
-	if err := json.Unmarshal(body, &traceReq); err != nil {
-		log.Printf("[otlp] unmarshal error: %v", err)
-		http.Error(w, "invalid OTLP payload: "+err.Error(), http.StatusBadRequest)
-		return
+	contentType := req.Header.Get("Content-Type")
+	if contentType == "application/x-protobuf" {
+		if err := proto.Unmarshal(body, &traceReq); err != nil {
+			log.Printf("[otlp] protobuf unmarshal error: %v", err)
+			http.Error(w, "invalid OTLP protobuf payload: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
+		// 默认 JSON (application/json 或其他)
+		if err := json.Unmarshal(body, &traceReq); err != nil {
+			log.Printf("[otlp] json unmarshal error: %v", err)
+			http.Error(w, "invalid OTLP payload: "+err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	// 4. 转换为 IAOEP StandardSpan (使用鉴权得到的 tenant_id, 不再用 default)
 	spans := MapSpans(&traceReq, tenantID)
-	r.spansReceived += uint64(len(spans))
+	r.spansReceived.Add(uint64(len(spans)))
 
 	// 5. 发送到 Kafka (每条 Span 一条 Kafka 消息, Key=trace_id 保证同 trace 顺序)
 	ctx, cancel := context.WithTimeout(req.Context(), 5*time.Second)
@@ -100,17 +112,17 @@ func (r *Receiver) HandleHTTPTraces(w http.ResponseWriter, req *http.Request) {
 	for _, span := range spans {
 		spanData, err := json.Marshal(span)
 		if err != nil {
-			r.spansFailed++
+			r.spansFailed.Add(1)
 			continue
 		}
 		if err := r.sender.Send(ctx, span.TraceID, spanData); err != nil {
 			log.Printf("[otlp] kafka send error: %v", err)
-			r.spansFailed++
+			r.spansFailed.Add(1)
 			continue
 		}
 		sent++
 	}
-	r.spansSent += uint64(sent)
+	r.spansSent.Add(uint64(sent))
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -129,11 +141,11 @@ func (r *Receiver) HandleHTTPLogs(w http.ResponseWriter, req *http.Request) {
 func (r *Receiver) HandleHealth(w http.ResponseWriter, req *http.Request) {
 	stats := map[string]interface{}{
 		"status":         "ok",
-		"spans_received": r.spansReceived,
-		"spans_sent":     r.spansSent,
-		"spans_failed":   r.spansFailed,
-		"auth_rejected":  r.authRejected,
-		"rate_rejected":  r.rateRejected,
+		"spans_received": r.spansReceived.Load(),
+		"spans_sent":     r.spansSent.Load(),
+		"spans_failed":   r.spansFailed.Load(),
+		"auth_rejected":  r.authRejected.Load(),
+		"rate_rejected":  r.rateRejected.Load(),
 		"timestamp":      time.Now().Unix(),
 	}
 	w.Header().Set("Content-Type", "application/json")

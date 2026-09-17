@@ -2,6 +2,7 @@ package io.iaoep.evaluator.notification;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import java.util.Map;
 
@@ -15,14 +16,33 @@ import java.util.Map;
 @Component
 public abstract class GenericWebhookNotifier implements Notifier {
 
+    private final RestClient restClient = RestClient.builder().build();
+
     protected abstract String getPayloadField();    // "markdown" / "text" / "content"
 
     @Override
     public boolean send(String webhookUrl, String title, String content, Map<String, Object> metadata) {
-        // 简化: 直接 POST JSON, {field: {title, content}}, 不引入 HTTP 客户端库
-        // 真实生产用 RestClient / WebClient
-        log.info("[{}] send to {} | title={} | metadata={}", type(), webhookUrl, title, metadata);
-        // 模拟成功
-        return true;
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            log.debug("[{}] webhook URL not configured, skipping", type());
+            return false;
+        }
+        try {
+            Map<String, Object> payload = Map.of(
+                    getPayloadField(), Map.of(
+                            "title", title,
+                            "content", content
+                    )
+            );
+            restClient.post()
+                    .uri(webhookUrl)
+                    .body(payload)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("[{}] webhook sent: {}", type(), title);
+            return true;
+        } catch (Exception e) {
+            log.warn("[{}] webhook send failed: {}", type(), e.getMessage());
+            return false;
+        }
     }
 }

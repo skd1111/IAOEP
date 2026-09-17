@@ -1,4 +1,4 @@
-import type { DashboardMetrics, TraceListResponse, TraceDetailResponse } from './types';
+import type { DashboardMetrics, EvolutionInsight, TraceListResponse, TraceDetailResponse } from './types';
 
 const API_BASE = '/api/v1';
 
@@ -45,6 +45,10 @@ export const api = {
   getTraceDetail: (traceId: string) =>
     fetchJson<TraceDetailResponse>(`/traces/${traceId}`),
 
+  /** Dashboard 自进化洞察 */
+  getEvolutionInsight: () =>
+    fetchJson<EvolutionInsight>('/dashboard/evolution-insight'),
+
   /** 健康检查 */
   health: () => fetchJson<{ status: string }>('/health'),
 
@@ -52,10 +56,10 @@ export const api = {
   // Phase 3 mock (PR 21 补全)
   // ============================================================
 
-  approveSuggestion: (id: string): Promise<void> =>
+  approveSuggestion: (_id: string): Promise<void> =>
     new Promise((resolve) => setTimeout(resolve, 300)),
 
-  rejectSuggestion: (id: string): Promise<void> =>
+  rejectSuggestion: (_id: string): Promise<void> =>
     new Promise((resolve) => setTimeout(resolve, 300)),
 
   evolutionLogs: (): MockEvolutionLog[] => [
@@ -291,13 +295,22 @@ export const mockApi = {
     active_agents: 12,
   }),
 
+  evolutionInsight: (): EvolutionInsight => ({
+    autoDiscovered: 7,
+    autoRollbacks: 2,
+    pendingApprovals: 3,
+    successRate: 0.86,
+    costSaved: 42.5,
+    latencyImproved: 18.3,
+  }),
+
   traces: (): TraceListResponse => ({
     total: 1247,
     traces: Array.from({ length: 20 }).map((_, i) => ({
       trace_id: `trace-${(Date.now() - i * 60000).toString(16)}-${i}`,
       agent_name: i % 3 === 0 ? 'customer-service' : i % 3 === 1 ? 'code-review' : 'data-analysis',
       user_id: `user-${i % 5}`,
-      session_id: `sess-${i % 10}`,
+      session_id: i < 3 ? 'sess-abc123' : `sess-${i % 10}`,
       skill_name: i % 2 === 0 ? 'general' : 'expert',
       start_time: Date.now() - i * 60000,
       duration_ms: 200 + Math.floor(Math.random() * 2000),
@@ -318,15 +331,22 @@ export const mockApi = {
         span_name: 'agent.run',
         span_kind: 'INTERNAL',
         start_time_unix_nano: Date.now() * 1_000_000,
-        end_time_unix_nano: (Date.now() + 850) * 1_000_000,
-        duration_ms: 850,
+        end_time_unix_nano: (Date.now() + 2500) * 1_000_000,
+        duration_ms: 2500,
         agent_name: 'customer-service',
         skill_name: 'general',
         user_id: 'alice',
+        session_id: 'sess-abc123',
         llm_input_tokens: 120,
         llm_output_tokens: 80,
-        cost_cny: 0.002,
+        cost_cny: 0.005,
         status: 'success',
+        attributes: {
+          'user.locale': 'zh-CN',
+          'agent.version': 'v1.2.0',
+          'deployment.region': 'cn-beijing',
+          'deployment.env': 'production',
+        },
       },
       {
         tenant_id: 'demo-tenant',
@@ -344,6 +364,12 @@ export const mockApi = {
         llm_output_tokens: 80,
         cost_cny: 0.002,
         status: 'success',
+        llm_input: 'System: 你是客服助手。请简洁、友好地回答用户问题。\nUser: 你们的退货政策是什么？',
+        llm_output: '我们的退货政策如下：\n1. 购买后 30 天内可申请退货\n2. 商品需保持原包装和未使用状态\n3. 退款将在 5-7 个工作日内原路返回\n\n如需退货，请提供订单号，我来帮您处理。',
+        attributes: {
+          'llm.temperature': '0.7',
+          'llm.max_tokens': '2048',
+        },
       },
       {
         tenant_id: 'demo-tenant',
@@ -357,6 +383,53 @@ export const mockApi = {
         duration_ms: 70,
         tool_name: 'get_current_time',
         status: 'success',
+        attributes: {
+          'tool.provider': 'builtin',
+          'tool.cache_hit': 'true',
+        },
+      },
+      {
+        tenant_id: 'demo-tenant',
+        trace_id: traceId,
+        span_id: 'span-4',
+        parent_span_id: 'span-1',
+        span_name: 'llm.call',
+        span_kind: 'CLIENT',
+        start_time_unix_nano: (Date.now() + 850) * 1_000_000,
+        end_time_unix_nano: (Date.now() + 2350) * 1_000_000,
+        duration_ms: 1500,
+        llm_system: 'openai',
+        llm_model: 'qwen3-max',
+        llm_input_tokens: 350,
+        llm_output_tokens: 200,
+        cost_cny: 0.003,
+        status: 'timeout',
+        error_message: 'LLM 响应超时 (1500ms > 1000ms 阈值)',
+        llm_input: 'System: 你是客服助手。当前用户: alice (VIP)\nUser: 我的订单 #20260917-001 什么时候发货？我已经等了 3 天了。\nContext: 用户最近一次交互中查询了退货政策。',
+        llm_output: '[超时 - 无响应]',
+        attributes: {
+          'llm.timeout_ms': '1000',
+          'llm.retry_count': '2',
+        },
+      },
+      {
+        tenant_id: 'demo-tenant',
+        trace_id: traceId,
+        span_id: 'span-5',
+        parent_span_id: 'span-4',
+        span_name: 'tool.execute',
+        span_kind: 'INTERNAL',
+        start_time_unix_nano: (Date.now() + 2400) * 1_000_000,
+        end_time_unix_nano: (Date.now() + 2480) * 1_000_000,
+        duration_ms: 80,
+        tool_name: 'search_knowledge_base',
+        status: 'error',
+        error_message: '知识库连接失败: ECONNREFUSED 10.0.1.5:6379',
+        attributes: {
+          'tool.endpoint': 'http://10.0.1.5:6379',
+          'tool.retry': '3',
+          'error.code': 'ECONNREFUSED',
+        },
       },
     ],
   }),
@@ -466,4 +539,20 @@ export const mockApi = {
       createdAt: Date.now() - 12 * 3600_000,
     },
   ],
+
+  // ============================================================
+  // Phase 7: Federation mock (mirror from api)
+  // ============================================================
+
+  federation: api.federation,
+  triggerFederation: api.triggerFederation,
+  federationTimeline: api.federationTimeline,
+
+  // ============================================================
+  // Phase 3: Evolution mock (mirror from api)
+  // ============================================================
+
+  approveSuggestion: api.approveSuggestion,
+  rejectSuggestion: api.rejectSuggestion,
+  evolutionLogs: api.evolutionLogs,
 };

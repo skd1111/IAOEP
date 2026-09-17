@@ -15,8 +15,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"io.iaoep/ingest/internal/auth"
-	"io.iaoep/ingest/internal/ratelimit"
+	"github.com/iaoep/ingest/internal/auth"
+	"github.com/iaoep/ingest/internal/ratelimit"
 )
 
 type traceServiceServer struct {
@@ -29,36 +29,36 @@ func (s *traceServiceServer) Export(ctx context.Context, req *coltracepb.ExportT
 	// 1. 鉴权 (gRPC metadata)
 	tenantID, err := s.receiver.registry.AuthenticateGRPC(ctx)
 	if err != nil {
-		s.receiver.authRejected++
+		s.receiver.authRejected.Add(1)
 		log.Printf("[otlp-grpc] auth failed: %v", err)
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
 
 	// 2. 限流
 	if !s.receiver.limiter.Allow(tenantID) {
-		s.receiver.rateRejected++
+		s.receiver.rateRejected.Add(1)
 		log.Printf("[otlp-grpc] rate limited: tenant=%s", tenantID)
 		return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded")
 	}
 
 	spans := MapSpans(req, tenantID)
-	s.receiver.spansReceived += uint64(len(spans))
+	s.receiver.spansReceived.Add(uint64(len(spans)))
 
 	sent := 0
 	for _, span := range spans {
 		spanData, err := json.Marshal(span)
 		if err != nil {
-			s.receiver.spansFailed++
+			s.receiver.spansFailed.Add(1)
 			continue
 		}
 		if err := s.receiver.sender.Send(ctx, span.TraceID, spanData); err != nil {
 			log.Printf("[otlp-grpc] kafka send error: %v", err)
-			s.receiver.spansFailed++
+			s.receiver.spansFailed.Add(1)
 			continue
 		}
 		sent++
 	}
-	s.receiver.spansSent += uint64(sent)
+	s.receiver.spansSent.Add(uint64(sent))
 
 	return &coltracepb.ExportTraceServiceResponse{}, nil
 }

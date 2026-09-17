@@ -56,7 +56,13 @@ public class TraceConsumer {
             log.debug("TraceConsumer batch: received={}, accepted={}, rejected={}", received, accepted, rejected);
         }
 
-        // 手动 ACK: 写入已加入缓冲,即使 ClickHouse flush 失败,Kafka 也会重试
+        // 等待数据实际落库后再 ACK, 避免进程崩溃丢失缓冲中的数据
+        if (accepted > 0) {
+            boolean flushed = sink.waitForFlush(props.getRetry().getBackoffMs() * 2L);
+            if (!flushed) {
+                log.warn("TraceConsumer: flush timeout, ACK deferred. buffer={}", sink.getBufferSize());
+            }
+        }
         ack.acknowledge();
     }
 

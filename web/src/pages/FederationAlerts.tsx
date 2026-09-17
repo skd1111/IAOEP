@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { mockApi, type MockFederationAlert } from '@/lib/api';
+import { Card, CardContent } from '@/components/ui/card';
+import { type MockFederationAlert } from '@/lib/api';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 /**

@@ -1,1 +1,2 @@
 io.iaoep.sdk.autoconfigure.IaoepSdkAutoConfiguration
+io.iaoep.sdk.abtest.ABTestAutoConfiguration

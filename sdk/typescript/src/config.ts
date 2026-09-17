@@ -5,7 +5,7 @@
 import { trace, type Tracer } from '@opentelemetry/api';
 import { NodeTracerProvider } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { BatchSpanProcessor, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME,
@@ -44,7 +44,7 @@ export function configure(config: IAOEPConfig): Tracer {
 
     const provider = new NodeTracerProvider({
       resource,
-      sampler: ratio >= 1 ? undefined : undefined,  // 简化: 默认全采样
+      sampler: ratio >= 1 ? undefined : new TraceIdRatioBasedSampler(ratio),
     });
 
     const exporter = new OTLPTraceExporter({

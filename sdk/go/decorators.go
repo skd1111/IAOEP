@@ -2,6 +2,7 @@ package iaoep
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -172,11 +173,12 @@ func contextWithABGroup(ctx context.Context, group string) context.Context {
 	return context.WithValue(ctx, abTestGroupKey, group)
 }
 
-// randomUUID 生成 UUID v4 (简化, 不引外部依赖).
+// randomUUID 生成 UUID v4 (使用 crypto/rand).
 func randomUUID() string {
 	b := make([]byte, 16)
-	// Phase 1: 简化用 crypto/rand 替代, 这里 placeholder
-	_ = b
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

@@ -2,6 +2,7 @@ package io.iaoep.sdk.abtest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -20,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 缓存 key: {@code abTestName + traceId}, 比 user_id 更细粒度 (一次请求的所有子 span 一致).</p>
  */
 @Slf4j
-@Component
 @ConfigurationProperties(prefix = "iaoep.sdk.abtest")
 public class ABTestClient {
 

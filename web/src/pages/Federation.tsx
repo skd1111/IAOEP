@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Eye, EyeOff, Plus } from 'lucide-react';
+import { Shield, Eye, EyeOff, Plus, Lock } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { mockApi, type MockFederationAggregate } from '@/lib/api';
 import { cn, formatRelativeTime } from '@/lib/utils';
@@ -28,6 +28,23 @@ export function Federation() {
 
   return (
     <div className="p-6 space-y-4">
+      {/* 独有亮点横幅 */}
+      <div className="flex items-start gap-3 p-4 rounded-lg border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5">
+        <div className="p-2 rounded-lg bg-cyan-500/10 shrink-0">
+          <Lock className="w-5 h-5 text-cyan-500" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">联邦学习 + 差分隐私</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500">IAOEP 独有</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            IAOEP 通过 Laplace 机制添加 ε-差分隐私噪声，确保聚合结果不泄露任何租户明文数据，满足 GDPR / 数据安全法合规要求。
+            适用于 SaaS 平台型公司——一个平台上有多个客户的 Agent，需要全局洞察但不能泄露单个租户信息。
+          </p>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">

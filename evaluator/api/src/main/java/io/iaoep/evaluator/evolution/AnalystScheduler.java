@@ -7,6 +7,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 /**
  * Analyst Scheduler — 周期触发 Analyst.
  *
@@ -40,10 +42,14 @@ public class AnalystScheduler {
     @Scheduled(fixedDelayString = "${iaoep.evaluator.analyst.fixed-delay-ms:86400000}",
                initialDelay = 10000)
     public void runAnalyst() {
-        log.info("AnalystScheduler triggering...");
-        // Phase 3 简化: 只跑默认 project (或第一个 project)
-        // 实际应该遍历所有 project_id, 每个跑一次
-        // 这里省略 project 列表查询, 等待 PR 21 接入 EvolutionLog 后再做完整调度
-        log.info("AnalystScheduler placeholder - see PR 21 for full integration");
+        log.info("AnalystScheduler triggering (lookbackJobs={})...", lookbackJobs);
+        try {
+            // 使用默认 project ID (实际生产应遍历所有 project)
+            UUID defaultProjectId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            int suggestionsGenerated = analystService.analyze(defaultProjectId, lookbackJobs);
+            log.info("AnalystScheduler completed: {} suggestions generated", suggestionsGenerated);
+        } catch (Exception e) {
+            log.error("AnalystScheduler failed: {}", e.getMessage(), e);
+        }
     }
 }

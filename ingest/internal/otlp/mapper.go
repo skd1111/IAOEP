@@ -158,8 +158,10 @@ func mapSpan(span *tracepb.Span, tenantID, serviceName string) StandardSpan {
 			out.ToolErrorType = value
 
 		// 成本
-		case "gen_ai.cost.cny", "gen_ai.cost.usd":
+		case "gen_ai.cost.cny":
 			out.CostCNY = floatValue(value)
+		case "gen_ai.cost.usd":
+			out.CostCNY = floatValue(value) * 7.2 // USD → CNY 近似汇率
 
 		// Phase 5: A/B Test
 		case "ab_test_name", "iaoep.ab_test_name":

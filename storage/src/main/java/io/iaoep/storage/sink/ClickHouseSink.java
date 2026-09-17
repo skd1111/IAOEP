@@ -117,8 +117,10 @@ public class ClickHouseSink {
         try {
             buffer.add(span);
             if (buffer.size() >= props.getBatch().getSize()) {
-                flushLocked();
+                flushOnce(); // 失败时异常传播, 由 flush() 或调用方处理
             }
+        } catch (Exception e) {
+            log.warn("Auto-flush in add() failed: {}", e.getMessage());
         } finally {
             lock.unlock();
         }
@@ -126,70 +128,70 @@ public class ClickHouseSink {
 
     /**
      * 强制 flush (定时器调用 / 优雅关闭)。
+     * 包含重试: 失败后释放锁 → sleep → 重新获取锁 → 再尝试一次。
      */
     public void flush() {
         lock.lock();
         try {
-            flushLocked();
-        } finally {
+            flushOnce();
+            return; // 成功
+        } catch (Exception e) {
+            writeErrorsCounter.increment();
+            log.error("Failed to flush spans to ClickHouse: {}", e.getMessage());
+            // 释放锁后重试, 避免持锁 sleep
             lock.unlock();
+            try {
+                try {
+                    Thread.sleep(props.getRetry().getBackoffMs());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                lock.lock();
+                try {
+                    flushOnce(); // 重试一次
+                } catch (Exception retryEx) {
+                    writeErrorsCounter.increment();
+                    log.error("Retry flush failed, discarding {} spans: {}", buffer.size(), retryEx.getMessage());
+                    buffer.clear();
+                } finally {
+                    lock.unlock();
+                }
+            } catch (Exception outerEx) {
+                // sleep 之前或 lock 之后异常, 安全丢弃
+                log.warn("Retry flush outer error: {}", outerEx.getMessage());
+            }
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 
     /**
-     * 实际 flush 逻辑 (必须在 lock 内调用)。
+     * 单次 flush 尝试 (必须在 lock 内调用, 失败时抛异常但不释放锁)。
      */
-    private void flushLocked() {
+    private void flushOnce() throws Exception {
         if (buffer.isEmpty()) {
             return;
         }
         int size = buffer.size();
         pendingFlushes.incrementAndGet();
         Timer.Sample sample = Timer.start(meterRegistry);
-
         try {
-            // 重置 PreparedStatement 参数
             batchStatement.clearParameters();
             batchStatement.clearBatch();
-
             for (int i = 0; i < size; i++) {
-                StandardSpan span = buffer.get(i);
-                bindSpan(batchStatement, span);
+                bindSpan(batchStatement, buffer.get(i));
                 batchStatement.addBatch();
             }
-
             int[] result = batchStatement.executeBatch();
-            int written = result.length;
-            spansWrittenCounter.increment(written);
-            log.debug("ClickHouseSink flushed {} spans", written);
+            spansWrittenCounter.increment(result.length);
+            log.debug("ClickHouseSink flushed {} spans", result.length);
             buffer.clear();
-        } catch (Exception e) {
-            writeErrorsCounter.increment();
-            log.error("Failed to flush {} spans to ClickHouse: {}", size, e.getMessage());
-            // 重试逻辑
-            if (shouldRetry(e)) {
-                retryFlush();
-            } else {
-                // 跳过 (避免卡住消费), 清空缓冲
-                buffer.clear();
-            }
         } finally {
             sample.stop(writeTimer);
             pendingFlushes.decrementAndGet();
-        }
-    }
-
-    private boolean shouldRetry(Exception e) {
-        // 简化: 总是重试一次
-        return true;
-    }
-
-    private void retryFlush() {
-        try {
-            Thread.sleep(props.getRetry().getBackoffMs());
-            flush();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 
@@ -222,12 +224,14 @@ public class ClickHouseSink {
         return """
                 INSERT INTO iaoep.traces (
                     tenant_id, trace_id, span_id, parent_span_id, span_name, span_kind,
-                    start_time_unix_nano, end_time_unix_nano, duration_ms,
+                    start_time, end_time, duration_ms,
                     agent_name, session_id, user_id, skill_name,
                     llm_system, llm_model, llm_input_tokens, llm_output_tokens,
                     tool_name, tool_call_id, tool_error_type,
-                    cost_cny, status, error_message
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cost_cny, status, error_message,
+                    ab_test_name, ab_test_group,
+                    tags, attributes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
     }
 
@@ -241,8 +245,9 @@ public class ClickHouseSink {
         ps.setString(4, nullToEmpty(span.getParentSpanId()));
         ps.setString(5, nullToEmpty(span.getSpanName()));
         ps.setString(6, nullToEmpty(span.getSpanKind()));
-        ps.setLong(7, span.getStartTimeUnixNano() != null ? span.getStartTimeUnixNano() : 0L);
-        ps.setLong(8, span.getEndTimeUnixNano() != null ? span.getEndTimeUnixNano() : 0L);
+        // 时间: 纳秒时间戳 → java.sql.Timestamp (ClickHouse DateTime64(9))
+        ps.setTimestamp(7, nanosToTimestamp(span.getStartTimeUnixNano()));
+        ps.setTimestamp(8, nanosToTimestamp(span.getEndTimeUnixNano()));
         ps.setInt(9, span.getDurationMs() != null ? span.getDurationMs() : 0);
         ps.setString(10, nullToEmpty(span.getAgentName()));
         ps.setString(11, nullToEmpty(span.getSessionId()));
@@ -258,15 +263,60 @@ public class ClickHouseSink {
         ps.setDouble(21, span.getCostCny() != null ? span.getCostCny() : 0.0);
         ps.setString(22, nullToEmpty(span.getStatus()));
         ps.setString(23, nullToEmpty(span.getErrorMessage()));
+        // Phase 5: A/B Test 字段
+        ps.setString(24, nullToEmpty(span.getAbTestName()));
+        ps.setString(25, nullToEmpty(span.getAbTestGroup()));
+        // 灵活扩展 Map 字段
+        ps.setObject(26, span.getTags() != null ? span.getTags() : java.util.Map.of());
+        ps.setObject(27, span.getAttributes() != null ? span.getAttributes() : java.util.Map.of());
     }
 
     private String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
 
+    /**
+     * 纳秒时间戳 → java.sql.Timestamp (ClickHouse DateTime64(9) 兼容).
+     */
+    private java.sql.Timestamp nanosToTimestamp(Long nanos) {
+        if (nanos == null || nanos == 0L) {
+            return new java.sql.Timestamp(0);
+        }
+        long seconds = nanos / 1_000_000_000L;
+        long nanoAdjustment = nanos % 1_000_000_000L;
+        return java.sql.Timestamp.from(java.time.Instant.ofEpochSecond(seconds, nanoAdjustment));
+    }
+
     // ============================================================
     // 健康检查
     // ============================================================
+
+    /**
+     * 等待缓冲清空 (数据实际落库) 后再返回, 供 Consumer 在 ACK 前调用。
+     *
+     * @param timeoutMs 最大等待时间 (毫秒)
+     * @return true=缓冲已清空, false=超时
+     */
+    public boolean waitForFlush(long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            lock.lock();
+            try {
+                if (buffer.isEmpty()) {
+                    return true;
+                }
+            } finally {
+                lock.unlock();
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
 
     public int getBufferSize() {
         return buffer.size();

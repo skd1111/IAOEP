@@ -62,6 +62,10 @@ public class StandardSpan {
     private String status;
     private String errorMessage;
 
+    // Phase 5: A/B Test
+    private String abTestName;
+    private String abTestGroup;
+
     // 灵活扩展
     private Map<String, String> tags;
     private Map<String, String> attributes;
@@ -121,4 +125,9 @@ public class StandardSpan {
     public String getStatus() { return status; }
     @JsonProperty("error_message")
     public String getErrorMessage() { return errorMessage; }
+
+    @JsonProperty("ab_test_name")
+    public String getAbTestName() { return abTestName; }
+    @JsonProperty("ab_test_group")
+    public String getAbTestGroup() { return abTestGroup; }
 }

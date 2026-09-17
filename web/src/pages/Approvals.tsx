@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { CheckCircle2, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { mockApi, type MockSuggestion } from '@/lib/api';
@@ -99,12 +97,9 @@ export function Approvals() {
                         ⚠️ 高风险需 2 个 Maintainer 签字
                       </span>
                     )}
-                    <Link
-                      to={`/suggestions/${s.id}`}
-                      className="ml-auto text-xs text-primary hover:underline"
-                    >
-                      详情 →
-                    </Link>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      ID: {s.id.slice(0, 8)}
+                    </span>
                   </div>
                 </div>
               ))}

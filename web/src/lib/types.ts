@@ -26,6 +26,8 @@ export interface StandardSpan {
   llm_model?: string;
   llm_input_tokens?: number;
   llm_output_tokens?: number;
+  llm_input?: string;   // prompt / messages 原文
+  llm_output?: string;  // 模型返回原文
 
   // Tool
   tool_name?: string;
@@ -69,6 +71,16 @@ export interface DashboardMetrics {
   p99_latency_ms: number;
   error_rate: number;
   active_agents: number;
+}
+
+/** Dashboard 自进化洞察卡片数据 */
+export interface EvolutionInsight {
+  autoDiscovered: number;       // 本周自动发现的问题数
+  autoRollbacks: number;        // 自动回滚次数
+  pendingApprovals: number;     // 待审批建议
+  successRate: number;          // 自进化成功率 (0-1)
+  costSaved: number;            // 节省成本 (CNY)
+  latencyImproved: number;      // 延迟改善百分比
 }
 
 export interface TraceListResponse {

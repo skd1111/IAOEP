@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Activity, Search, BarChart3, Database, GitCompareArrows, ShieldCheck, GitCommit, Shield, TrendingUp, AlertTriangle, Cog } from 'lucide-react';
+import { Activity, Search, BarChart3, Database, GitCompareArrows, ShieldCheck, GitCommit, Shield, TrendingUp, AlertTriangle, Cog, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const nav = [
@@ -13,6 +13,10 @@ const nav = [
   { to: '/federation', label: 'Federation', icon: Shield },
   { to: '/federation/timeline', label: 'Timeline', icon: TrendingUp },
   { to: '/federation/alerts', label: 'Alerts', icon: AlertTriangle },
+];
+
+const highlightNav = [
+  { to: '/vs', label: 'Why IAOEP?', icon: Sparkles },
   { to: '/settings', label: 'Settings', icon: Cog },
 ];
 
@@ -41,6 +45,27 @@ export function Sidebar() {
             {item.label}
           </NavLink>
         ))}
+
+        {/* 分隔线 + 高亮入口 */}
+        <div className="border-t border-border my-2 pt-2 space-y-1">
+          {highlightNav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                  isActive
+                    ? 'bg-purple-500/20 text-purple-400'
+                    : 'text-purple-400/70 hover:bg-purple-500/10 hover:text-purple-400'
+                )
+              }
+            >
+              <item.icon className="w-4 h-4" />
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
       </nav>
       <div className="p-3 border-t border-border">
         <button className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent w-full">

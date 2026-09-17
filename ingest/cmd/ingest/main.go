@@ -51,9 +51,8 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr(),
-		Handler:           mux,
+		Handler:           http.MaxBytesHandler(mux, 50<<20), // 50 MB
 		ReadHeaderTimeout: 10 * time.Second,
-		MaxBodySize:       50 << 20, // 50 MB
 	}
 
 	// 启动 HTTP server

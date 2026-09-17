@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, GitCommit, Undo2, CheckCircle2 } from 'lucide-react';
+import { GitCommit, Undo2, CheckCircle2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { mockApi, type MockEvolutionLog } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/utils';

@@ -15,26 +15,12 @@ Phase 4 + 5: 让 SDK 自动决定 Agent 调用走 baseline / candidate 版本,
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
 import os
 import threading
 import time
 import uuid
-from contextvars import ContextVar
-from typing import Any, Callable, Dict, Optional, Tuple
-from uuid import UUID
-
-import httpx
-
-logger = logging.getLogger("iaoep-sdk")
-
-from __future__ import annotations
-
-import functools
-import logging
-import os
-import threading
-import time
 from contextvars import ContextVar
 from typing import Any, Callable, Dict, Optional, Tuple
 from uuid import UUID
@@ -107,6 +93,15 @@ class ABTestClient:
     def assign(self, ab_test_name: str, project_id: UUID, user_id: str) -> str:
         """调 evaluator 决定 baseline / candidate, 带本地缓存."""
         cache_key = f"{ab_test_name}:{user_id or 'anonymous'}"
+        return self._do_assign(ab_test_name, project_id, cache_key)
+
+    def assign_by_trace_id(self, ab_test_name: str, project_id: UUID, trace_id: str) -> str:
+        """按 trace_id 细粒度分配 (同一 trace 所有 span 落到同一 group)."""
+        cache_key = f"{ab_test_name}:trace:{trace_id}"
+        return self._do_assign(ab_test_name, project_id, cache_key)
+
+    def _do_assign(self, ab_test_name: str, project_id: UUID, cache_key: str) -> str:
+        """内部: 查缓存 → 调 evaluator → 缓存结果."""
         now = time.time()
         with self._lock:
             cached = self._cache.get(cache_key)
@@ -189,7 +184,6 @@ def ab_test(
             finally:
                 ABTestContext.clear()
 
-        import inspect
         if inspect.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper

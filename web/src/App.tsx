@@ -13,6 +13,7 @@ import { Federation } from '@/pages/Federation';
 import { FederationTimeline } from '@/pages/FederationTimeline';
 import { FederationAlerts } from '@/pages/FederationAlerts';
 import { Settings } from '@/pages/Settings';
+import { Compare } from '@/pages/Compare';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/federation/timeline" element={<FederationTimeline />} />
           <Route path="/federation/alerts" element={<FederationAlerts />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/vs" element={<Compare />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

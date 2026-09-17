@@ -8,8 +8,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * 跨租户评测报告 (对外暴露, 始终含 DP 噪声值).
@@ -30,7 +28,7 @@ public class FederationReportResponse {
     private Double sensitivity;
     private Instant windowStart;
     private Instant windowEnd;
-    private List<UUID> contributorTenants;           // 参与租户 ID (已脱敏 hash)
+    private List<String> contributorTenants;           // 参与租户 ID (已脱敏 hash)
 
     public static FederationReportResponse from(FederationAggregate a, boolean includeTruth) {
         return FederationReportResponse.builder()
@@ -45,7 +43,7 @@ public class FederationReportResponse {
                 .windowStart(a.getWindowStart())
                 .windowEnd(a.getWindowEnd())
                 .contributorTenants(a.getTenantHashes() == null ? List.of()
-                        : a.getTenantHashes().keySet().stream().map(UUID::fromString).toList())
+                        : new java.util.ArrayList<>(a.getTenantHashes().keySet()))
                 .build();
     }
 }
