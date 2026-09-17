@@ -4,7 +4,7 @@
 >
 > 不只是看到问题，而是自动解决问题。
 
-竞品是「行车记录仪」，IAOEP 是「自动驾驶辅助系统」—— 唯一实现 **观测 → 评测 → 自进化** 完整闭环的开源 Agent 平台。
+> 从「看到问题」到「自动解决问题」—— 唯一实现 **观测 → 评测 → 自进化** 完整闭环的开源 Agent 平台。
 
 IAOEP 对外只暴露 **OpenTelemetry (OTLP)** 一种协议。任何语言、任何 Agent 框架,只要能发出 OTLP,就能 5 分钟接入 —— 不需要改业务代码,不需要绑死任何 SDK。
 
@@ -17,21 +17,19 @@ IAOEP 对外只暴露 **OpenTelemetry (OTLP)** 一种协议。任何语言、任
 - **质量评测** —— Golden Dataset + 规则评分器 + LLM-as-Judge + 回归检测
 - **多租户** —— 每个接入方按 `tenant_id` 隔离,统一查询与权限边界
 - **自进化闭环** —— Analyst Agent 自动发现问题 → 三级审批流 → 自动应用/回滚 → 审计可追溯
-- **联邦学习** —— 跨租户聚合分析 + ε-差分隐私噪声,满足 GDPR 合规,竞品完全空白
+- **联邦学习** —— 跨租户聚合分析 + ε-差分隐私噪声,满足 GDPR 合规
 
-## 为什么选择 IAOEP
+## 核心能力
 
-| 能力 | Langfuse | LangSmith | Arize Phoenix | Braintrust | **IAOEP** |
-|---|---|---|---|---|---|
-| 观测 + 评测 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 自进化闭环 | ❌ | ❌ | ❌ | ❌ | **✅** |
-| 联邦学习 + 差分隐私 | ❌ | ❌ | ❌ | ❌ | **✅** |
-| 三级审批流 + SOP | ❌ | ❌ | ❌ | ❌ | **✅** |
-| Java/Go 原生 SDK | ❌ | ❌ | ❌ | ❌ | **✅** |
-| 纯 OTLP 零 SDK 锁定 | 部分 | ❌ | ✅ | ❌ | **✅** |
-| 完全开源 MIT | ✅ | ❌ | ❌ | 部分 | **✅** |
-
-→ 详细对比见 [Why IAOEP?](#) (Web Console 侧边栏 “Why IAOEP?” 页面)
+| 能力 | 说明 |
+|---|---|
+| 观测 + 评测 | Trace 采集、Waterfall 可视化、Golden Dataset、LLM-as-Judge |
+| 自进化闭环 | Analyst Agent 自动发现 → 三级审批流 → 自动应用/回滚 |
+| 联邦学习 + 差分隐私 | 跨租户聚合分析不泄露明文,满足 GDPR 合规 |
+| 三级审批流 + SOP | Low 自动 / Medium 单审 / High 双签 + SLA |
+| 真·多语言 SDK | Java 注解 + Go 装饰器 + Python/TS 装饰器,完整 SDK 级支持 |
+| 纯 OTLP 零锁定 | 只暴露 OTLP,换平台业务代码一行不用改 |
+| 完全开源 MIT | 自托管免费,无功能阉割 |
 
 ## 核心设计:为什么是 OTLP
 
@@ -602,7 +600,7 @@ curl -X POST http://iaoep-ingest:4318/v1/traces \
 | `tool.call.id` | `tool.execute` | ❌ | 工具调用 ID,用于关联 |
 | `tool.error.type` | `tool.execute` | ❌ | 错误类型(`timeout` / `rate_limit` / ...) |
 
-**不推荐** 自创 attribute 名 —— 跟 OTel GenAI SemConv 对齐后,将来可以直接接 Grafana / Datadog / NewRelic 等其他后端。
+**不推荐** 自创 attribute 名 —— 跟 OTel GenAI SemConv 对齐后,将来可以直接接 Grafana 等其他后端。
 
 ---
 
@@ -655,7 +653,7 @@ curl -X POST http://iaoep-ingest:4318/v1/traces \
 - ✅ Ingest Gateway (Go) — OTLP/HTTP + gRPC 双协议
 - ✅ IAOEP SDK (Java / Python / TypeScript / Go) — 四语言装饰器
 - ✅ Web Console — Trace 可视化 + Waterfall + 搜索 + LLM 内容
-- ✅ 自进化洞察 Dashboard + 竞品对比页 + 联邦学习页
+- ✅ 自进化洞察 Dashboard + 能力展示页 + 联邦学习页
 - ⏳ 评测引擎 (Phase 2)
 - ⏳ 自进化引擎 (Phase 3)
 
